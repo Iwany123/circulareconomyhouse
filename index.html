@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tim the Builder</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root{--bg:#f4f7f2;--card:#fff;--tx:#1d2b1f;--mut:#5d6b5f;--bd:#d5ded2;--g:#2e8b57;--v:#c0612b;--ac:#e8f3ea;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141a15;--card:#1e2720;--tx:#e8f0e9;--mut:#9fb0a2;--bd:#34423a;--g:#4cc38a;--v:#e08a55;--ac:#233229}}
+:root[data-theme="dark"]{--bg:#141a15;--card:#1e2720;--tx:#e8f0e9;--mut:#9fb0a2;--bd:#34423a;--g:#4cc38a;--v:#e08a55;--ac:#233229}
+*{box-sizing:border-box}html,body{margin:0}body{background:var(--bg);color:var(--tx);font:16px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+main{max-width:720px;margin:0 auto;padding:12px}
+h1{font-size:1.4rem;margin:0}h2{font-size:1.05rem;margin:0 0 6px}.sub{color:var(--mut);margin:2px 0 10px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:10px}
+#view{position:relative;height:300px;border-radius:12px;overflow:hidden;border:1px solid var(--bd);margin-bottom:10px;touch-action:none}
+#view canvas{display:block;width:100%;height:100%}
+#cap{position:absolute;left:8px;right:8px;bottom:8px;background:rgba(0,0,0,.6);color:#fff;border-radius:8px;padding:6px 10px;font-size:.88rem}
+.meter{height:20px;background:var(--v);border-radius:10px;position:relative;overflow:hidden}
+.meter i{display:block;height:100%;background:var(--g);transition:width .4s}
+.meter b{position:absolute;left:85%;top:0;bottom:0;width:2px;background:var(--tx)}
+.row{display:flex;justify-content:space-between;font-size:.82rem;color:var(--mut);margin-top:4px}
+.opts{display:grid;gap:8px}button{font:inherit;color:var(--tx);cursor:pointer}
+.opt{text-align:left;background:var(--card);border:2px solid var(--bd);border-radius:10px;padding:9px 12px}
+.opt:hover:not(:disabled){border-color:var(--g)}.opt.r{border-left:6px solid var(--g)}.opt.v{border-left:6px solid var(--v)}
+.opt:disabled{opacity:.55;cursor:not-allowed}.opt small{display:block;color:var(--mut)}
+.tag{display:inline-block;font-size:.72rem;padding:1px 7px;border-radius:99px;background:var(--ac);border:1px solid var(--bd);margin-right:4px}
+.btn{background:var(--g);color:#fff;border:0;border-radius:10px;padding:10px 16px;font-weight:600}.btn.alt{background:var(--card);color:var(--tx);border:1px solid var(--bd)}
+.msg{background:var(--ac);border-radius:8px;padding:8px 10px;margin-top:8px;font-size:.9rem}
+.big{font-size:1.8rem;font-weight:700}.hid{display:none}
+</style></head><body><main>
+<h1>🏗️ Tim the Builder</h1>
+<p class="sub">You are Tim. Build the house from recycled materials. Max 15% virgin, and 100% recycled is zero waste.</p>
+<div id="view"><div id="cap">Welcome! Tim is ready on site.</div></div>
+
+<section id="menu" class="card">
+<h2>Choose a level</h2>
+<p><b>Recycled Content (%)</b> = secondary material (A1–A3) ÷ weight of declared unit × 100.<br>
+More than <b>15% virgin</b> (under 85% recycled): Tim loses. <b>100% recycled</b>: zero waste, Tim wins.</p>
+<div class="opts">
+<button class="opt" onclick="start(1)"><b>Level 1 · Backyard Build</b><small>All recycled materials in stock.</small></button>
+<button class="opt" onclick="start(2)"><b>Level 2 · Supply Shortage</b><small>Some recycled options are out of stock. You have 2 relocation tokens to source them.</small></button>
+</div></section>
+
+<section id="game" class="hid">
+<div class="card">
+<div style="display:flex;justify-content:space-between"><b>Recycled content</b><b id="pct">0%</b></div>
+<div class="meter"><i id="fill" style="width:0"></i><b></b></div>
+<div class="row"><span>♻️ Recycled</span><span>85% target</span><span>🪨 Virgin</span></div>
+<div class="row"><span id="tok"></span><span id="step"></span></div>
+</div>
+<div class="card"><h2 id="slotName"></h2><p class="sub" id="slotHint"></p><div class="opts" id="opts"></div><div class="msg hid" id="msg"></div></div>
+</section>
+<section id="end" class="hid card"></section>
+
+<script>
+const CERT={Metal:'RCC',Plastic:'GRS',Rubber:'RCC'};
+const COL={Metal:0x7d8fa3,Plastic:0x2fa88a,Rubber:0x3b3b3b,Concrete:0x9d9d98,Aggregates:0xc4a974,Glass:0xa8dcf0};
+const SLOTS=[
+{s:'Foundation',h:'What carries the house?',o:[
+ {n:'Poured concrete footing',m:'Concrete',w:3000,r:0,t:'High embodied carbon; hard to recover.'},
+ {n:'Recycled metal piers',m:'Metal',w:1200,r:1,t:'Bolted and reversible.',lock:1},
+ {n:'Recycled rubber shock-pads',m:'Rubber',w:900,r:1,t:'Adds vibration damping.'}]},
+{s:'Walls',h:'Pick the wall system.',o:[
+ {n:'Aggregate blocks',m:'Aggregates',w:2500,r:0,t:'Quarrying hurts earth regeneration.'},
+ {n:'Recycled metal panels',m:'Metal',w:1400,r:1,t:'Design for Deconstruction: unbolt, don\'t demolish.',lock:1},
+ {n:'Recycled plastic lumber',m:'Plastic',w:900,r:1,t:'Zero mold, high durability.'}]},
+{s:'Roof',h:'Keep the rain out.',o:[
+ {n:'Virgin glass roof panels',m:'Glass',w:600,r:0,t:'Energy-intensive, but upcyclable later.'},
+ {n:'Recycled plastic roof tiles',m:'Plastic',w:700,r:1,t:'Interlocking tiles replace tar shingles.'},
+ {n:'Recycled metal roof sheets',m:'Metal',w:800,r:1,t:'Highly recyclable at end of life.'}]},
+{s:'Floor',h:'What does Tim walk on?',o:[
+ {n:'Concrete slab',m:'Concrete',w:1800,r:0,t:'Heavy and permanent.'},
+ {n:'Recycled rubber flooring',m:'Rubber',w:600,r:1,t:'Soundproofing, mortar-free underlayment.'},
+ {n:'Recycled plastic decking',m:'Plastic',w:500,r:1,t:'Waterproof and long-lasting.',lock:1}]},
+{s:'Windows',h:'Let the light in.',o:[
+ {n:'Virgin glass windows',m:'Glass',w:350,r:0,t:'Efficient; use removable frames for recovery.'},
+ {n:'Recycled plastic glazing',m:'Plastic',w:200,r:1,t:'Lighter, lower embodied energy.',lock:1},
+ {n:'Reclaimed metal-frame panels',m:'Metal',w:250,r:1,t:'Second-life frames: creative upcycling.'}]},
+{s:'Pipes & Insulation',h:'The finishing touches.',o:[
+ {n:'Aggregate sub-base fill',m:'Aggregates',w:400,r:0,t:'Structural fill from quarried stone.'},
+ {n:'Recycled plastic conduit pipes',m:'Plastic',w:150,r:1,t:'GRS-verified pipes keep plastic in use.'},
+ {n:'Recycled rubber crumb insulation',m:'Rubber',w:300,r:1,t:'Thermal insulation, +15 comfort.'}]}
+];
+const $=id=>document.getElementById(id);
+// ---------- 3D ----------
+const view=$('view'),scene=new THREE.Scene();scene.background=new THREE.Color(0xbfe3f5);
+const cam=new THREE.PerspectiveCamera(50,1,.1,100),ren=new THREE.WebGLRenderer({antialias:true});
+view.prepend(ren.domElement);
+scene.add(new THREE.AmbientLight(0xffffff,.65));const sun=new THREE.DirectionalLight(0xffffff,.8);sun.position.set(6,10,8);scene.add(sun);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(40,40),new THREE.MeshLambertMaterial({color:0x8fbf7a}));ground.rotation.x=-Math.PI/2;scene.add(ground);
+const house=new THREE.Group();scene.add(house);
+function size(){const w=view.clientWidth,h=view.clientHeight;ren.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix()}
+addEventListener('resize',size);size();
+let th=.5,ph=1.15,rad=14,drag=false,lx=0,ly=0;
+view.addEventListener('pointerdown',e=>{drag=true;lx=e.clientX;ly=e.clientY});
+addEventListener('pointerup',()=>drag=false);
+addEventListener('pointermove',e=>{if(!drag)return;th-=(e.clientX-lx)*.01;ph=Math.min(1.5,Math.max(.4,ph-(e.clientY-ly)*.01));lx=e.clientX;ly=e.clientY});
+view.addEventListener('wheel',e=>{e.preventDefault();rad=Math.min(22,Math.max(8,rad+e.deltaY*.01))},{passive:false});
+function mat(o,i){const g=o.m==='Glass'||(i===4&&o.m==='Plastic');return new THREE.MeshLambertMaterial({color:COL[o.m],transparent:g,opacity:g?.6:1})}
+function box(g,o,i,x,y,z,w,h,d,c){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),c?new THREE.MeshLambertMaterial({color:c}):mat(o,i));m.position.set(x,y,z);g.add(m)}
+const BU=[
+(o,i,g)=>box(g,o,i,0,.2,0,6.4,.4,5.4),
+(o,i,g)=>{box(g,o,i,0,1.6,2.4,6,2.4,.2);box(g,o,i,0,1.6,-2.4,6,2.4,.2);box(g,o,i,-3,1.6,0,.2,2.4,5);box(g,o,i,3,1.6,0,.2,2.4,5);box(g,o,i,0,1.15,2.52,1,1.5,.1,0x5a3d2b)},
+(o,i,g)=>{const m=new THREE.Mesh(new THREE.ConeGeometry(4.5,1.8,4),mat(o,i));m.rotation.y=Math.PI/4;m.scale.z=.85;m.position.y=3.7;g.add(m)},
+(o,i,g)=>box(g,o,i,0,.5,0,5.6,.12,4.6),
+(o,i,g)=>{box(g,o,i,-2,1.8,2.55,1.2,.9,.1);box(g,o,i,2,1.8,2.55,1.2,.9,.1)},
+(o,i,g)=>{const p=new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,2.8,12),mat(o,i));p.position.set(3.2,1.8,-1.5);g.add(p);[1.2,2.3].forEach(y=>{const b=new THREE.Mesh(new THREE.CylinderGeometry(.2,.2,.18,12),new THREE.MeshLambertMaterial({color:0xe8c547}));b.position.set(3.2,y,-1.5);g.add(b)})}
+];
+function person(c){const g=new THREE.Group(),L=(m,x,y,z)=>{m.position.set(x,y,z);g.add(m);return m};
+ L(new THREE.Mesh(new THREE.CylinderGeometry(.28,.32,1,12),new THREE.MeshLambertMaterial({color:c})),0,.6,0);
+ L(new THREE.Mesh(new THREE.SphereGeometry(.24,12,12),new THREE.MeshLambertMaterial({color:0xf0c8a0})),0,1.35,0);
+ L(new THREE.Mesh(new THREE.SphereGeometry(.27,12,8,0,6.3,0,1.57),new THREE.MeshLambertMaterial({color:c===0xe0a020?0xffd23f:0x445577})),0,1.42,0);
+ const arm=new THREE.Group();arm.position.set(.34,1,0);arm.add(new THREE.Mesh(new THREE.BoxGeometry(.14,.7,.14),new THREE.MeshLambertMaterial({color:c})));arm.children[0].position.y=-.3;g.add(arm);g.arm=arm;return g}
+const tim=person(0xe0a020);tim.position.set(-5,0,5);scene.add(tim);
+let tTarget=new THREE.Vector3(-4,0,4.6),client=null,cTarget=null,drops=[],phase='idle';
+// ---------- game ----------
+let lvl,i,picks,tokens,locked;
+const show=id=>['menu','game','end'].forEach(x=>$(x).classList.toggle('hid',x!==id));
+const cap=t=>$('cap').textContent=t;
+function stats(){let r=0,t=0;picks.forEach(p=>{t+=p.w;if(p.r)r+=p.w});return{r,t,pct:t?r/t*100:0}}
+function clearHouse(){while(house.children.length)house.remove(house.children[0]);if(client){scene.remove(client);client=null}scene.background.set(0xbfe3f5);drops=[]}
+function start(l){lvl=l;i=0;picks=[];tokens=l===2?2:0;locked={};clearHouse();phase='build';show('game');render();cap('Tim is ready to build.')}
+function render(){
+ const st=stats();$('pct').textContent=(picks.length?st.pct.toFixed(0):0)+'%';$('fill').style.width=(picks.length?st.pct:0)+'%';
+ $('tok').textContent=lvl===2?'🔁 Relocation tokens: '+tokens:'';$('step').textContent='Step '+(i+1)+' of 6';
+ const S=SLOTS[i];$('slotName').textContent=S.s;$('slotHint').textContent=S.h;$('msg').classList.add('hid');
+ $('opts').innerHTML=S.o.map((o,k)=>{const out=lvl===2&&o.lock&&!locked[i+'-'+k],cert=o.r?CERT[o.m]:'Declare';
+ return `<button class="opt ${o.r?'r':'v'}" onclick="pick(${k})" ${out&&tokens<1?'disabled':''}><b>${out?'🔒 ':''}${o.n}</b> <span class="tag">${o.r?'♻️ Recycled':'🪨 Virgin'}</span><span class="tag">${cert}</span><span class="tag">${o.w} kg</span><small>${out?(tokens<1?'Out of stock. No tokens left.':'Out of stock locally. Costs 1 relocation token.'):'Material passport scanned'}</small></button>`}).join('')}
+function pick(k){
+ const o=SLOTS[i].o[k];
+ if(lvl===2&&o.lock&&!locked[i+'-'+k]){if(tokens<1)return;tokens--;locked[i+'-'+k]=1}
+ picks.push(o);const g=new THREE.Group();BU[i](o,i,g);g.position.y=8;house.add(g);drops.push({g,t:0});
+ tTarget.set([-4.5,-3.5,3.5,-1,4,4.6][i],0,5);cap('Tim adds: '+o.n);
+ const m=$('msg');m.textContent=(o.r?'♻️ Circular credit! ':'⚠️ Virgin material. ')+o.t;m.classList.remove('hid');
+ $('opts').querySelectorAll('button').forEach(b=>b.disabled=true);
+ const st=stats();$('pct').textContent=st.pct.toFixed(0)+'%';$('fill').style.width=st.pct+'%';
+ const last=i===5,b=document.createElement('button');b.className='btn';b.style.marginTop='8px';b.textContent=last?'Deliver the house':'Next part';
+ b.onclick=()=>{b.remove();if(last)finish();else{i++;render()}};m.after(b)}
+function finish(){
+ const st=stats(),v=100-st.pct,lose=v>15,zero=st.pct>=100;
+ const used=[...new Set(picks.filter(p=>p.r).map(p=>CERT[p.m]))];if(picks.some(p=>!p.r))used.push('Declare');
+ const carbon=picks.reduce((a,p)=>a+p.w*(p.r?.1:.5),0);
+ let title,rating,msg;
+ if(lose){title='😞 Tim loses';rating='More than 15% virgin material';msg='The client rejected the house. Swap heavy virgin parts for recycled metal, plastic or rubber.';scene.background.set(0x9aa3a8)}
+ else if(zero){title='🏆 Zero Waste! Tim wins';rating='★★★★★ 100% recycled, Creative Upcycler';msg='Every kilogram stays in the loop. Tim also learned to relocate the material supply.'}
+ else{title='🏠 House delivered';rating='Meets the 85/15 standard, but not zero waste';msg='Replace the last virgin parts with recycled ones to reach 100% and win.'}
+ phase='end';tTarget.set(1.5,0,5.2);client=person(0x3b6fd0);client.position.set(-9,0,8);scene.add(client);cTarget=new THREE.Vector3(-.5,0,5.4);
+ cap(lose?'The client inspects the house...':'Tim hands the client the keys...');
+ setTimeout(()=>{if(phase!=='end')return;if(lose){cTarget=new THREE.Vector3(-14,0,10);cap('❌ Client walked away: too much virgin material.')}else cap(zero?'🔑 Keys delivered! Zero-waste house, 100% recycled.':'🔑 Keys delivered! House is 85%+ recycled.')},3500);
+ $('end').innerHTML=`<div class="big">${title}</div><p>${rating}</p><div class="meter"><i style="width:${st.pct}%"></i><b></b></div>
+ <div class="row"><span>Recycled ${st.pct.toFixed(1)}%</span><span>Virgin ${v.toFixed(1)}%</span></div>
+ <p>Recycled Content = ${st.r.toLocaleString()} kg ÷ ${st.t.toLocaleString()} kg × 100 = <b>${st.pct.toFixed(1)}%</b></p>
+ <p>Certifications: ${used.map(u=>`<span class="tag">${u}</span>`).join('')}</p>
+ <p>Embodied carbon index (illustrative): <b>${Math.round(carbon).toLocaleString()}</b></p><div class="msg">${msg}</div>
+ <p style="margin-top:10px">Drag the 3D view to rotate it.</p>
+ <p><button class="btn" onclick="start(lvl)">Play again</button> <button class="btn alt" onclick="clearHouse();phase='idle';show('menu')">Levels</button></p>
+ <p class="sub">GRS: Global Recycled Standard. RCC: Recycled Content Certification. Declare: Red List free label. Carbon factors are for gameplay only.</p>`;
+ show('end')}
+// ---------- loop ----------
+let last=performance.now();
+function walk(p,t,dt){const d=t.clone().sub(p.position);d.y=0;const L=d.length();if(L>.05){p.position.add(d.multiplyScalar(Math.min(1,2.5*dt/L)));p.rotation.y=Math.atan2(d.x,d.z);return 1}return 0}
+(function loop(now){requestAnimationFrame(loop);const dt=Math.min(.05,(now-last)/1000);last=now;
+ let work=0;drops.forEach(d=>{if(d.t<1){d.t=Math.min(1,d.t+dt/.9);const e=1-Math.pow(1-d.t,3);d.g.position.y=8*(1-e);work=1}});
+ const mv=walk(tim,tTarget,dt);tim.position.y=(mv||work)?Math.abs(Math.sin(now*.012))*.1:0;
+ tim.arm.rotation.x=work?-1.2+Math.sin(now*.015)*.6:0;
+ if(client){const c=walk(client,cTarget,dt);client.position.y=c?Math.abs(Math.sin(now*.012))*.1:0;if(!c&&phase==='end')client.lookAt(tim.position.x,0,tim.position.z)}
+ if(phase==='end'&&!drag)th+=dt*.25;
+ cam.position.set(Math.sin(th)*Math.sin(ph)*rad,Math.cos(ph)*rad,Math.cos(th)*Math.sin(ph)*rad);cam.lookAt(0,1.5,0);ren.render(scene,cam)})(performance.now());
+</script></main></body></html>
